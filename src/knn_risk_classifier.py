@@ -31,14 +31,22 @@ def generate_dataset(sc_increase_percentage=4, qa_increase_percentage=1, n_sampl
         "No Cost Reduction Participation": [round(24 * sc_increase_percentage)] * n_samples,
     })
 
-    df["Risk Classification"] = 2
+    # --- FIX STARTS HERE ---
+    
+    # Define features and the target separately
+    feature_cols = df.columns.tolist()
+    df["Risk Classification"] = 2 # This column will now be ignored by the loop
 
-    for col in df.columns:
+    # Only loop over the feature columns to add random variation
+    for col in feature_cols:
         base_value = df[col].mean()
-        std = base_value * 0.1
-        df[col] = [round(random.normalvariate(base_value, std)) for _ in range(n_samples)]
+        std = base_value * 0.15 # Increased std slightly for more variance
+        df[col] = [max(0, round(random.normalvariate(base_value, std))) for _ in range(n_samples)]
+
+    # --- FIX ENDS HERE ---
 
     return df
+
 
 
 def assign_risk(df):
