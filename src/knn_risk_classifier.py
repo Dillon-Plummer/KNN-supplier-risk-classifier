@@ -60,8 +60,16 @@ def assign_risk(df):
     return df
 
 
-def train_knn(df):
-    """Train a KNN model and return evaluation metrics."""
+def train_knn(df, n_neighbors=3):
+    """Train a KNN model and return evaluation metrics.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Dataset with features and ``Risk Classification`` column.
+    n_neighbors : int, optional
+        Number of neighbours for ``KNeighborsClassifier``.
+    """
     X = df.drop(columns=["Risk Classification"])
     y = df["Risk Classification"]
 
@@ -70,7 +78,7 @@ def train_knn(df):
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    knn = KNeighborsClassifier(n_neighbors=3)
+    knn = KNeighborsClassifier(n_neighbors=n_neighbors)
     knn.fit(X_train_scaled, y_train)
     y_pred = knn.predict(X_test_scaled)
 
