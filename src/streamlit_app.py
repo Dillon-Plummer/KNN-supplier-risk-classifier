@@ -42,8 +42,7 @@ def main():
     pairplot_df = all_features.copy()
     pairplot_df["Predicted Risk"] = preds
     g = sns.pairplot(pairplot_df, hue="Predicted Risk")
-    st.pyplot(g.figure, clear_figure=True, use_container_width=True)
-
+    st.pyplot(g.fig)
 
 if __name__ == "__main__":
     main()
