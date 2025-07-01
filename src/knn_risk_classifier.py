@@ -4,7 +4,14 @@ import random
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report, confusion_matrix
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    classification_report,
+    confusion_matrix,
+)
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
@@ -101,13 +108,13 @@ def train_knn(df, n_neighbors=3):
     cm = confusion_matrix(y_test, y_pred, labels=labels)
     cm_df = pd.DataFrame(cm, index=labels, columns=labels)
 
-    return metrics, pd.DataFrame(report).transpose(), cm_df
+    return metrics, pd.DataFrame(report).transpose(), cm_df, knn, scaler
 
 
 if __name__ == "__main__":
     df = generate_dataset()
     df = assign_risk(df)
-    metrics, evaluation_df, cm_df = train_knn(df)
+    metrics, evaluation_df, cm_df, model, scaler = train_knn(df)
     print(metrics)
     print(evaluation_df)
     print(cm_df)

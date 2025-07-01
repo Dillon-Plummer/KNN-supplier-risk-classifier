@@ -24,5 +24,11 @@ streamlit run src/streamlit_app.py
 
 Use the sidebar to tweak dataset generation parameters and the number of
 neighbors used in the KNN classifier. Results are updated automatically when
-parameters change and a confusion matrix visualization is displayed alongside the
-metrics and classification report.
+parameters change. After the classification report, a live Seaborn pairplot of
+the predicted risk levels is displayed for interactive exploration.
+
+## Example Output
+
+Running the script prints evaluation metrics and a classification report to the
+console. The interactive Streamlit app shows a pairplot generated from the
+current settings directly in the browser.
