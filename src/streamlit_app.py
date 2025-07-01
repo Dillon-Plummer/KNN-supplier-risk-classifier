@@ -27,7 +27,7 @@ def main():
         n_samples=int(n_samples),
     )
     df = assign_risk(df)
-    metrics, report, cm_df = train_knn(df, n_neighbors=int(n_neighbors))
+    metrics, report, cm_df, model, scaler = train_knn(df, n_neighbors=int(n_neighbors))
 
     st.subheader("Metrics")
     st.json(metrics)
@@ -35,12 +35,14 @@ def main():
     st.subheader("Classification Report")
     st.dataframe(report)
 
-    st.subheader("Confusion Matrix")
-    fig, ax = plt.subplots()
-    sns.heatmap(cm_df, annot=True, fmt="d", cmap="Blues", ax=ax)
-    ax.set_xlabel("Predicted")
-    ax.set_ylabel("Actual")
-    st.pyplot(fig)
+
+    st.subheader("Pairplot")
+    all_features = df.drop(columns=["Risk Classification"])
+    preds = model.predict(scaler.transform(all_features))
+    pairplot_df = all_features.copy()
+    pairplot_df["Predicted Risk"] = preds
+    g = sns.pairplot(pairplot_df, hue="Predicted Risk")
+    st.pyplot(g.fig)
 
 
 if __name__ == "__main__":
