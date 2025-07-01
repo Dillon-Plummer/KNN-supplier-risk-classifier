@@ -23,5 +23,6 @@ streamlit run src/streamlit_app.py
 ```
 
 Use the sidebar to tweak dataset generation parameters and the number of
-neighbors used in the KNN classifier. The app displays the resulting metrics and
-classification report.
+neighbors used in the KNN classifier. Results are updated automatically when
+parameters change and a confusion matrix visualization is displayed alongside the
+metrics and classification report.

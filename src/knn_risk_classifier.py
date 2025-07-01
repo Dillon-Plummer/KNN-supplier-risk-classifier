@@ -69,6 +69,12 @@ def train_knn(df, n_neighbors=3):
         Dataset with features and ``Risk Classification`` column.
     n_neighbors : int, optional
         Number of neighbours for ``KNeighborsClassifier``.
+
+    Returns
+    -------
+    tuple
+        Tuple containing metrics dictionary, classification report
+        ``pandas.DataFrame`` and a confusion matrix ``pandas.DataFrame``.
     """
     X = df.drop(columns=["Risk Classification"])
     y = df["Risk Classification"]
@@ -90,12 +96,18 @@ def train_knn(df, n_neighbors=3):
     }
 
     report = classification_report(y_test, y_pred, output_dict=True)
-    return metrics, pd.DataFrame(report).transpose()
+
+    labels = sorted(y.unique())
+    cm = confusion_matrix(y_test, y_pred, labels=labels)
+    cm_df = pd.DataFrame(cm, index=labels, columns=labels)
+
+    return metrics, pd.DataFrame(report).transpose(), cm_df
 
 
 if __name__ == "__main__":
     df = generate_dataset()
     df = assign_risk(df)
-    metrics, evaluation_df = train_knn(df)
+    metrics, evaluation_df, cm_df = train_knn(df)
     print(metrics)
     print(evaluation_df)
+    print(cm_df)
