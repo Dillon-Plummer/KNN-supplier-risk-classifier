@@ -1,21 +1,14 @@
 import streamlit as st
 import seaborn as sns
-import matplotlib.pyplot as plt
-from knn_risk_classifier import generate_dataset, assign_risk, train_knn
+import pandas as pd
+from knn_risk_classifier import assign_risk, train_knn
 
 def main():
     st.title("Supplier Risk Classifier")
 
-    # --- NO CHANGES TO SIDEBAR ---
     st.sidebar.header("Configuration")
-    sc_increase = st.sidebar.slider(
-        "SC Increase Percentage", min_value=1, max_value=10, value=4
-    )
-    qa_increase = st.sidebar.slider(
-        "QA Increase Percentage", min_value=1, max_value=10, value=1
-    )
-    n_samples = st.sidebar.number_input(
-        "Number of Samples", min_value=50, max_value=1000, value=350, step=50
+    uploaded_file = st.sidebar.file_uploader(
+        "Upload CSV file with supplier data", type=["csv"]
     )
     n_neighbors = st.sidebar.number_input(
         "KNN Neighbors", min_value=1, max_value=20, value=3, step=1
@@ -23,11 +16,11 @@ def main():
 
     # --- FIX: WRAP POTENTIALLY FAILING CODE IN A TRY...EXCEPT BLOCK ---
     try:
-        df = generate_dataset(
-            sc_increase_percentage=sc_increase,
-            qa_increase_percentage=qa_increase,
-            n_samples=int(n_samples),
-        )
+        if uploaded_file is None:
+            st.info("Upload a CSV file to run the classifier.")
+            return
+
+        df = pd.read_csv(uploaded_file)
         df = assign_risk(df)
         metrics, report, cm_df, model, scaler = train_knn(df, n_neighbors=int(n_neighbors))
 

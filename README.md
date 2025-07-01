@@ -1,7 +1,7 @@
 # Predicting Supplier Risk with a KNN Algorithm
 ![hero_image](https://github.com/DillonGelman/KNN-supplier-risk-classifier/blob/main/hero_image.png)
 
-This project provides a simple K-Nearest Neighbors (KNN) implementation for classifying supplier risk levels. The dataset is generated synthetically and risk categories are assigned based on configurable thresholds.
+This project provides a simple K-Nearest Neighbors (KNN) implementation for classifying supplier risk levels. Risk categories are assigned automatically based on configurable thresholds. You can now upload your own CSV data instead of relying on randomly generated samples.
 
 ## Usage
 
@@ -22,10 +22,11 @@ Launch the app with:
 streamlit run src/streamlit_app.py
 ```
 
-Use the sidebar to tweak dataset generation parameters and the number of
-neighbors used in the KNN classifier. Results are updated automatically when
-parameters change. After the classification report, a live Seaborn pairplot of
-the predicted risk levels is displayed for interactive exploration.
+Use the sidebar to upload a CSV file containing your supplier data and choose
+the number of neighbors used in the KNN classifier. Results are updated
+automatically once your data is loaded. After the classification report, a live
+Seaborn pairplot of the predicted risk levels is displayed for interactive
+exploration.
 
 ## Example Output
 
