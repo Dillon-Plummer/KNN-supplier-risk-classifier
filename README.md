@@ -23,10 +23,10 @@ streamlit run src/streamlit_app.py
 ```
 
 Use the sidebar to upload a CSV file containing your supplier data and choose
-the number of neighbors used in the KNN classifier. Results are updated
-automatically once your data is loaded. After the classification report, a live
-Seaborn pairplot of the predicted risk levels is displayed for interactive
-exploration.
+the number of neighbors used in the KNN classifier. If no file is uploaded, the
+app generates sample data based on slider settings for quick testing. After the
+classification report, a live Seaborn pairplot of the predicted risk levels is
+displayed for interactive exploration.
 
 ## Example Output
 
