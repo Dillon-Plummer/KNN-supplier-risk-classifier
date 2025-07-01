@@ -1,3 +1,6 @@
+
+![hero_image](https://github.com/user-attachments/assets/153adf67-2777-4cce-95cf-4ba8358daaec)
+
 # KNN-supplier-risk-classifier
 
 This project provides a simple K-Nearest Neighbors (KNN) implementation for classifying supplier risk levels. The dataset is generated synthetically and risk categories are assigned based on configurable thresholds.
