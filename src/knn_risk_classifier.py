@@ -16,63 +16,87 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
 
+
 def generate_dataset(sc_increase_percentage=4, qa_increase_percentage=1, n_samples=350):
-    """Create a randomized dataset for supplier risk classification."""
-    df = pd.DataFrame({
-        "% of NCMRs per Total Lots": [round(27 * qa_increase_percentage)] * n_samples,
-        "Shipment Inaccuracy": [round(28 * sc_increase_percentage)] * n_samples,
-        "Failed OTD": [round(24 * sc_increase_percentage)] * n_samples,
-        "Audit Findings": [round(24 * qa_increase_percentage)] * n_samples,
-        "Financial Obstacles": [round(24 * sc_increase_percentage)] * n_samples,
-        "Response Delay (Docs)": [round(24 * sc_increase_percentage)] * n_samples,
-        "Capacity Limit": [round(24 * sc_increase_percentage)] * n_samples,
-        "Lack of Documentation (CoC, etc.)": [round(24 * qa_increase_percentage)] * n_samples,
-        "Unjustified Price Increase": [round(24 * sc_increase_percentage)] * n_samples,
-        "No Cost Reduction Participation": [round(24 * sc_increase_percentage)] * n_samples,
-    })
+    """
+    Create a dataset with distinct families/clusters for each risk class.
+    This function directly generates the classes, so the `assign_risk` function is no longer needed.
+    """
+    data_frames = []
 
-    # --- FIX STARTS HERE ---
-    
-    # Define features and the target separately
-    feature_cols = df.columns.tolist()
-    df["Risk Classification"] = 2 # This column will now be ignored by the loop
-
-    # Only loop over the feature columns to add random variation
-    for col in feature_cols:
-        base_value = df[col].mean()
-        std = base_value * 0.15 # Increased std slightly for more variance
-        df[col] = [max(0, round(random.normalvariate(base_value, std))) for _ in range(n_samples)]
-
-    # --- FIX ENDS HERE ---
-
-    return df
-
-
-
-def assign_risk(df):
-    """Assign risk levels based on threshold counts."""
-    thresholds = {
-        "% of NCMRs per Total Lots": 40,
-        "Shipment Inaccuracy": 85,
-        "Failed OTD": 85,
-        "Audit Findings": 50,
-        "Financial Obstacles": 85,
-        "Response Delay (Docs)": 105,
-        "Capacity Limit": 105,
-        "Lack of Documentation (CoC, etc.)": 45,
-        "Unjustified Price Increase": 100,
-        "No Cost Reduction Participation": 100,
+    # Define the characteristics for each risk profile
+    # Format: { "Display Name": (class_label, value_multiplier, num_samples) }
+    risk_profiles = {
+        "High": (1, 1.6, n_samples // 3),
+        "Medium": (2, 1.0, n_samples // 3),
     }
+    # Calculate remaining samples for the Low risk group
+    n_low = n_samples - sum(p[2] for p in risk_profiles.values())
+    risk_profiles["Low"] = (3, 0.4, n_low)
 
-    for index, row in df.iterrows():
-        high_count = sum(row[col] >= thresholds[col] for col in thresholds)
-        if high_count >= 3:
-            df.at[index, "Risk Classification"] = 1
-        elif high_count >= 1:
-            df.at[index, "Risk Classification"] = 2
-        else:
-            df.at[index, "Risk Classification"] = 3
-    return df
+    # Define base values using the sidebar sliders
+    base_sc_value = 25 * sc_increase_percentage
+    base_qa_value = 25 * qa_increase_percentage
+
+    # Group features for easier manipulation
+    sc_features = ["Shipment Inaccuracy", "Failed OTD", "Financial Obstacles", "Response Delay (Docs)", "Capacity Limit", "Unjustified Price Increase", "No Cost Reduction Participation"]
+    qa_features = ["% of NCMRs per Total Lots", "Audit Findings", "Lack of Documentation (CoC, etc.)"]
+
+    for profile_name, (label, multiplier, count) in risk_profiles.items():
+        if count == 0:
+            continue
+            
+        class_df = pd.DataFrame()
+        # Generate skewed data for each feature group
+        for feature in sc_features:
+            center = base_sc_value * multiplier
+            std_dev = center * 0.10 # Lower standard deviation for tighter clusters
+            class_df[feature] = np.random.normal(loc=center, scale=std_dev, size=count)
+        
+        for feature in qa_features:
+            center = base_qa_value * multiplier
+            std_dev = center * 0.10
+            class_df[feature] = np.random.normal(loc=center, scale=std_dev, size=count)
+        
+        class_df["Risk Classification"] = label
+        data_frames.append(class_df)
+
+    # Combine the data for each class into a single DataFrame
+    final_df = pd.concat(data_frames, ignore_index=True)
+    
+    # Clean up the data: ensure values are non-negative integers
+    feature_cols = sc_features + qa_features
+    final_df[feature_cols] = final_df[feature_cols].clip(lower=0).round().astype(int)
+
+    # Shuffle the dataset to mix the classes together
+    return final_df.sample(frac=1, random_state=42).reset_index(drop=True)
+
+
+
+# def assign_risk(df):
+#     """Assign risk levels based on threshold counts."""
+#     thresholds = {
+#         "% of NCMRs per Total Lots": 40,
+#         "Shipment Inaccuracy": 85,
+#         "Failed OTD": 85,
+#         "Audit Findings": 50,
+#         "Financial Obstacles": 85,
+#         "Response Delay (Docs)": 105,
+#         "Capacity Limit": 105,
+#         "Lack of Documentation (CoC, etc.)": 45,
+#         "Unjustified Price Increase": 100,
+#         "No Cost Reduction Participation": 100,
+#     }
+
+#     for index, row in df.iterrows():
+#         high_count = sum(row[col] >= thresholds[col] for col in thresholds)
+#         if high_count >= 3:
+#             df.at[index, "Risk Classification"] = 1
+#         elif high_count >= 1:
+#             df.at[index, "Risk Classification"] = 2
+#         else:
+#             df.at[index, "Risk Classification"] = 3
+#     return df
 
 
 def train_knn(df, n_neighbors=3):
