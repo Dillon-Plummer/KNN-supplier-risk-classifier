@@ -4,15 +4,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from knn_risk_classifier import generate_dataset, train_knn
 
-# --- Main App Logic ---
 def main():
+    """
+    Main function to run the Streamlit application.
+    """
     st.title("Supplier Risk Classifier")
 
-    # Initialize session state if it doesn't exist
+    # Initialize session state to manage the user's data source choice
     if 'data_source_choice' not in st.session_state:
         st.session_state.data_source_choice = None
 
-    # --- MODAL: This is the ONLY thing that runs if no choice has been made ---
+    # --- 1. INITIAL CHOICE MODAL ---
+    # This is the ONLY thing that runs if no choice has been made yet
     if st.session_state.data_source_choice is None:
         with st.expander("Choose Your Data Source", expanded=True):
             st.write("Would you like to upload your own data or use the interactive demo data?")
@@ -29,7 +32,8 @@ def main():
         # Stop execution completely until a button is clicked
         return
 
-    # --- DATA SOURCE UI (This runs AFTER a choice is made) ---
+    # --- 2. DATA SOURCE CONFIGURATION ---
+    # This section runs only AFTER a choice has been made
     st.sidebar.header("Configuration")
     df = None
 
@@ -42,10 +46,10 @@ def main():
                 df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
             except Exception as e:
                 st.error(f"Error reading file: {e}")
-                return
+                return # Stop if the file is invalid
         else:
             st.info("Please upload a file to continue.")
-            return # Stop if no file is uploaded yet
+            return # Stop if no file has been uploaded yet
 
     elif st.session_state.data_source_choice == 'demo':
         st.info("Using demo data, configured in the sidebar.")
@@ -58,14 +62,16 @@ def main():
             n_samples=int(n_samples),
         )
 
-    # --- MODEL CONFIGURATION & ANALYSIS ---
+    # --- 3. MODEL CONFIGURATION ---
     n_neighbors = st.sidebar.number_input("KNN Neighbors", 1, 20, 3, 1)
 
+    # --- 4. ANALYSIS AND VISUALIZATION ---
     if df is not None:
         try:
             st.subheader("Data Preview")
             st.dataframe(df.head())
-            # (The rest of your analysis code for metrics and plots goes here)
+
+            # Train model and get results
             metrics, report, cm_df, model, scaler = train_knn(df, n_neighbors=int(n_neighbors))
 
             st.subheader("Metrics")
@@ -74,14 +80,26 @@ def main():
             st.subheader("Classification Report")
             st.dataframe(report)
 
+            # --- PAIRPLOT WITH PERFORMANCE FIXES ---
             st.subheader("Pairplot of Predicted vs. Actual Features")
             all_features = df.drop(columns=["Risk Classification"])
             preds = model.predict(scaler.transform(all_features))
             pairplot_df = all_features.copy()
             pairplot_df["Predicted Risk"] = preds
             
-            g = sns.pairplot(pairplot_df, hue="Predicted Risk")
-            st.pyplot(g.fig)
+            st.info("Generating pairplot. This may take a moment for larger datasets.")
+
+            # Show a spinner while the plot is being created
+            with st.spinner("Building plot..."):
+                SAMPLES_FOR_PLOT = 200  # Set a reasonable limit for plotting
+                if len(pairplot_df) > SAMPLES_FOR_PLOT:
+                    plot_df = pairplot_df.sample(SAMPLES_FOR_PLOT)
+                else:
+                    plot_df = pairplot_df
+
+                # Generate the plot on the smaller, sampled dataframe
+                g = sns.pairplot(plot_df, hue="Predicted Risk", diag_kind='hist')
+                st.pyplot(g.fig)
 
         except Exception as e:
             st.error(f"An error occurred during analysis: {e}")
