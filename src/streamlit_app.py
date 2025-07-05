@@ -1,7 +1,7 @@
 import streamlit as st
 import seaborn as sns
 import pandas as pd
-from knn_risk_classifier import assign_risk, train_knn, generate_dataset
+from knn_risk_classifier import train_knn, generate_dataset
 
 def main():
     st.title("Supplier Risk Classifier")
@@ -37,7 +37,6 @@ def main():
         else:
             df = pd.read_csv(uploaded_file)
 
-        df = assign_risk(df)
         metrics, report, cm_df, model, scaler = train_knn(df, n_neighbors=int(n_neighbors))
 
         st.subheader("Metrics")
