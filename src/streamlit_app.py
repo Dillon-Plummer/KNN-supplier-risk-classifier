@@ -7,9 +7,7 @@ from knn_risk_classifier import generate_dataset, train_knn, preprocess_data
 
 # --- Constants ---
 TARGET_COLUMN = "Risk Classification"
-# Maps numerical categories to string labels
 RISK_LABEL_MAPPING = {1: "Low", 2: "Medium", 3: "High"}
-# Maps string labels to colors for the plot
 RISK_COLOR_MAPPING = {"Low": "green", "Medium": "yellow", "High": "orange", "New Supplier": "red"}
 
 # --- Main App Logic ---
@@ -91,41 +89,38 @@ def main():
                     st.session_state.new_supplier_data = pd.DataFrame([new_supplier_inputs])
 
             # --- Prediction and Plotting Logic ---
-            plot_df_final = None # Initialize a dataframe for the plot
+            plot_df_final = None 
             
-            # Start with the base data for plotting
             all_features = processed_df.drop(columns=[TARGET_COLUMN])
             preds = model.predict(scaler.transform(all_features))
             plot_df_final = all_features.copy()
-            # Map numerical predictions to string labels for the hue
             plot_df_final[TARGET_COLUMN] = [RISK_LABEL_MAPPING.get(p, p) for p in preds]
 
-            # If a new supplier has been submitted, process it
             if st.session_state.new_supplier_data is not None:
                 new_data_scaled = scaler.transform(st.session_state.new_supplier_data)
-                prediction = model.predict(new_data_scaled)
-                prediction_label = RISK_LABEL_MAPPING.get(prediction[0], "Unknown")
+                prediction_array = model.predict(new_data_scaled)
+                
+                # --- FIX: Use .item() to extract the scalar value ---
+                prediction_scalar = prediction_array.item()
+                prediction_label = RISK_LABEL_MAPPING.get(prediction_scalar, "Unknown")
+                # --- END FIX ---
+
                 st.success(f"Predicted Risk Category: **{prediction_label}**")
 
-                # Prepare the new supplier data for plotting
                 new_supplier_plot_data = st.session_state.new_supplier_data.copy()
                 new_supplier_plot_data[TARGET_COLUMN] = "New Supplier"
-                # Add the new supplier to the main plot dataframe
                 plot_df_final = pd.concat([plot_df_final, new_supplier_plot_data], ignore_index=True)
 
-            # --- Plotting Section ---
             st.subheader("Pairplot of Features")
             st.info("Generating plot from a sample of the data...")
             with st.spinner("Building plot..."):
                 SAMPLES_FOR_PLOT = 200
                 plot_sample_df = plot_df_final.sample(min(len(plot_df_final), SAMPLES_FOR_PLOT))
                 
-                # Ensure the new supplier is always in the sample if it exists
                 if st.session_state.new_supplier_data is not None:
                     if "New Supplier" not in plot_sample_df[TARGET_COLUMN].values:
                          plot_sample_df = pd.concat([plot_sample_df, plot_df_final[plot_df_final[TARGET_COLUMN] == "New Supplier"]], ignore_index=True)
 
-                # Define dot sizes: larger for the new supplier
                 dot_sizes = [100 if cat == "New Supplier" else 40 for cat in plot_sample_df[TARGET_COLUMN]]
 
                 g = sns.pairplot(
@@ -133,7 +128,7 @@ def main():
                     hue=TARGET_COLUMN,
                     palette=RISK_COLOR_MAPPING,
                     diag_kind='hist',
-                    plot_kws={'s': dot_sizes} # Set dot sizes
+                    plot_kws={'s': dot_sizes}
                 )
                 st.pyplot(g.fig)
 
