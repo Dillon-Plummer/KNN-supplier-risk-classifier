@@ -7,18 +7,21 @@ from knn_risk_classifier import generate_dataset, train_knn, preprocess_data
 
 # --- Constants ---
 TARGET_COLUMN = "Risk Classification"
-# Fixed mapping: numeric labels now correctly map to strings
-RISK_LABEL_MAPPING = {1: "High", 2: "Medium", 3: "Low"}
+RISK_LABEL_MAPPING = {1: "Low", 2: "Medium", 3: "High"}
 RISK_COLOR_MAPPING = {"Low": "green", "Medium": "yellow", "High": "orange", "New Supplier": "red"}
 
 # --- Main App Logic ---
 def main():
     st.title("Supplier Risk Classifier")
 
+    # Initialize session state
     if 'data_source_choice' not in st.session_state:
         st.session_state.data_source_choice = None
     if 'new_supplier_data' not in st.session_state:
         st.session_state.new_supplier_data = None
+    # --- ADDED: Initialize state for form inputs ---
+    if 'form_inputs' not in st.session_state:
+        st.session_state.form_inputs = {}
 
     # --- Initial Modal ---
     if st.session_state.data_source_choice is None:
@@ -83,21 +86,21 @@ def main():
                 for col in feature_cols:
                     stats = processed_df[col].describe()
                     st.caption(f"Stats for '{col}': Min: {stats['min']:.1f} | Mean: {stats['mean']:.1f} | Max: {stats['max']:.1f}")
-                    new_supplier_inputs[col] = st.number_input(f"Enter value for '{col}'", value=float(stats['mean']))
+                    
+                    # --- CHANGED: Use session state for the default value ---
+                    default_value = st.session_state.form_inputs.get(col, float(stats['mean']))
+                    new_supplier_inputs[col] = st.number_input(f"Enter value for '{col}'", value=default_value)
                 
                 submitted = st.form_submit_button("Predict Risk")
                 if submitted:
+                    # --- ADDED: Save the current inputs to session state ---
+                    st.session_state.form_inputs = new_supplier_inputs
                     st.session_state.new_supplier_data = pd.DataFrame([new_supplier_inputs])
 
             # --- Reworked Prediction and Plotting Logic ---
+            plot_df = processed_df.drop(columns=[TARGET_COLUMN])
+            plot_df[TARGET_COLUMN] = model.predict(scaler.transform(plot_df))
 
-            # 1. Create base DataFrame with numerical predictions
-            all_features = processed_df.drop(columns=[TARGET_COLUMN])
-            preds = model.predict(scaler.transform(all_features))
-            plot_df = all_features.copy()
-            plot_df[TARGET_COLUMN] = preds
-
-            # 2. Predict new supplier if it exists and add it to the DataFrame
             if st.session_state.new_supplier_data is not None:
                 new_data_scaled = scaler.transform(st.session_state.new_supplier_data)
                 prediction_array = model.predict(new_data_scaled)
@@ -106,55 +109,36 @@ def main():
                 st.success(f"Predicted Risk Category: **{prediction_label}**")
 
                 new_row = st.session_state.new_supplier_data.copy()
-                new_row[TARGET_COLUMN] = prediction_scalar  # Add numerical prediction
+                new_row[TARGET_COLUMN] = prediction_scalar
                 plot_df = pd.concat([plot_df, new_row], ignore_index=True)
             
-            # 3. Convert to string labels for plotting
             plot_df['Risk Label'] = plot_df[TARGET_COLUMN].map(RISK_LABEL_MAPPING)
             if st.session_state.new_supplier_data is not None:
-                # Mark the new supplier explicitly
                 plot_df.iloc[-1, plot_df.columns.get_loc('Risk Label')] = "New Supplier"
 
-            # 4. Plotting Section
             st.subheader("Pairplot of Features")
             st.info("Generating plot from a sample of the data...")
             with st.spinner("Building plot..."):
                 SAMPLES_FOR_PLOT = 200
-                plot_sample_df = plot_df.sample(min(len(plot_df), SAMPLES_FOR_PLOT), random_state=42)
+                plot_sample_df = plot_df.sample(min(len(plot_df), SAMPLES_FOR_PLOT))
                 
-                # Ensure the new supplier is always included
                 if st.session_state.new_supplier_data is not None:
                     if "New Supplier" not in plot_sample_df['Risk Label'].values:
-                        plot_sample_df = pd.concat([
-                            plot_sample_df,
-                            plot_df[plot_df['Risk Label'] == "New Supplier"]
-                        ])
+                         plot_sample_df = pd.concat([plot_sample_df, plot_df.loc[plot_df['Risk Label'] == "New Supplier"]])
 
-                # Option C: Draw base pairplot, then overlay the new supplier as an 'X'
+                dot_sizes = [100 if cat == "New Supplier" else 40 for cat in plot_sample_df['Risk Label']]
+
                 g = sns.pairplot(
                     plot_sample_df,
                     vars=feature_cols,
                     hue='Risk Label',
                     palette=RISK_COLOR_MAPPING,
-                    diag_kind='hist'
+                    diag_kind='hist',
+                    plot_kws={'s': dot_sizes}
                 )
-                if st.session_state.new_supplier_data is not None:
-                    new_point = plot_sample_df[plot_sample_df['Risk Label'] == "New Supplier"]
-                    for i, xvar in enumerate(feature_cols):
-                        for j, yvar in enumerate(feature_cols):
-                            if i != j:
-                                ax = g.axes[j, i]
-                                ax.scatter(
-                                    new_point[xvar],
-                                    new_point[yvar],
-                                    s=150,
-                                    c=RISK_COLOR_MAPPING["New Supplier"],
-                                    marker='X',
-                                    edgecolor='black'
-                                )
                 st.pyplot(g.fig)
 
-        except (ValueError, TypeError) as e:
+        except ValueError as e:
             st.error(f"A data type or value error occurred. Please check your input data. Details: {e}")
         except Exception as e:
             st.error(f"An unexpected error occurred during analysis: {e}")
