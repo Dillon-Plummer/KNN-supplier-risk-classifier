@@ -88,44 +88,48 @@ def main():
                 if submitted:
                     st.session_state.new_supplier_data = pd.DataFrame([new_supplier_inputs])
 
-            # --- Prediction and Plotting Logic ---
-            plot_df_final = None 
+            # --- Reworked Prediction and Plotting Logic ---
             
+            # 1. Create the base dataframe for plotting with NUMERICAL predictions
             all_features = processed_df.drop(columns=[TARGET_COLUMN])
             preds = model.predict(scaler.transform(all_features))
-            plot_df_final = all_features.copy()
-            plot_df_final[TARGET_COLUMN] = [RISK_LABEL_MAPPING.get(p, p) for p in preds]
+            plot_df = all_features.copy()
+            plot_df[TARGET_COLUMN] = preds
 
+            # 2. If a new supplier exists, predict it and add it to the dataframe
             if st.session_state.new_supplier_data is not None:
                 new_data_scaled = scaler.transform(st.session_state.new_supplier_data)
                 prediction_array = model.predict(new_data_scaled)
-                
-                # --- FIX: Use .item() to extract the scalar value ---
                 prediction_scalar = prediction_array.item()
                 prediction_label = RISK_LABEL_MAPPING.get(prediction_scalar, "Unknown")
-                # --- END FIX ---
-
                 st.success(f"Predicted Risk Category: **{prediction_label}**")
 
                 new_supplier_plot_data = st.session_state.new_supplier_data.copy()
-                new_supplier_plot_data[TARGET_COLUMN] = "New Supplier"
-                plot_df_final = pd.concat([plot_df_final, new_supplier_plot_data], ignore_index=True)
+                new_supplier_plot_data[TARGET_COLUMN] = prediction_scalar # Use numerical prediction
+                plot_df = pd.concat([plot_df, new_supplier_plot_data], ignore_index=True)
 
+            # 3. Create a NEW column with STRING labels for plotting colors and legend
+            plot_df['Risk Label'] = plot_df[TARGET_COLUMN].map(RISK_LABEL_MAPPING).fillna("Unknown")
+            if st.session_state.new_supplier_data is not None:
+                plot_df.loc[plot_df.index[-1], 'Risk Label'] = "New Supplier"
+
+            # --- Plotting Section ---
             st.subheader("Pairplot of Features")
             st.info("Generating plot from a sample of the data...")
             with st.spinner("Building plot..."):
                 SAMPLES_FOR_PLOT = 200
-                plot_sample_df = plot_df_final.sample(min(len(plot_df_final), SAMPLES_FOR_PLOT))
+                plot_sample_df = plot_df.sample(min(len(plot_df), SAMPLES_FOR_PLOT))
                 
                 if st.session_state.new_supplier_data is not None:
-                    if "New Supplier" not in plot_sample_df[TARGET_COLUMN].values:
-                         plot_sample_df = pd.concat([plot_sample_df, plot_df_final[plot_df_final[TARGET_COLUMN] == "New Supplier"]], ignore_index=True)
+                    if "New Supplier" not in plot_sample_df['Risk Label'].values:
+                         plot_sample_df = pd.concat([plot_sample_df, plot_df.loc[plot_df['Risk Label'] == "New Supplier"]])
 
-                dot_sizes = [100 if cat == "New Supplier" else 40 for cat in plot_sample_df[TARGET_COLUMN]]
+                dot_sizes = [100 if cat == "New Supplier" else 40 for cat in plot_sample_df['Risk Label']]
 
                 g = sns.pairplot(
                     plot_sample_df,
-                    hue=TARGET_COLUMN,
+                    vars=feature_cols,
+                    hue='Risk Label', # Use the new string label column for hue
                     palette=RISK_COLOR_MAPPING,
                     diag_kind='hist',
                     plot_kws={'s': dot_sizes}
@@ -133,9 +137,9 @@ def main():
                 st.pyplot(g.fig)
 
         except ValueError as e:
-            st.error(e)
+            st.error(f"An error occurred during analysis: The data may not be in the correct format. Details: {e}")
         except Exception as e:
-            st.error(f"An error occurred during analysis: {e}")
+            st.error(f"An unexpected error occurred during analysis: {e}")
 
 if __name__ == "__main__":
     main()
