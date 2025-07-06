@@ -7,6 +7,8 @@ from knn_risk_classifier import generate_dataset, train_knn, preprocess_data
 
 # --- Constants ---
 TARGET_COLUMN = "Risk Classification"
+RISK_CATEGORY_MAPPING = {1: "Low", 2: "Medium", 3: "High", "New Supplier": "New Supplier"}
+RISK_COLOR_MAPPING = {1: "green", 2: "yellow", 3: "orange", "New Supplier": "red"}
 
 # --- Main App Logic ---
 def main():
@@ -50,13 +52,11 @@ def main():
     elif st.session_state.data_source_choice == 'demo':
         st.info("Using demo data, configured in the sidebar.")
         overlap = st.sidebar.slider(
-            "Data Overlap", 
+            "Data Overlap",
             min_value=0.1, max_value=1.0, value=0.4, step=0.05,
             help="Controls the 'fuzziness' of the data clusters. Lower values create more distinct groups."
         )
         n_samples = st.sidebar.number_input("Number of Samples", 50, 1000, 350, 50)
-        
-        # This line must call the function with the new argument
         df = generate_dataset(n_samples=int(n_samples), overlap_multiplier=overlap)
 
     n_neighbors = st.sidebar.number_input("KNN Neighbors", 1, 20, 3, 1)
@@ -64,7 +64,7 @@ def main():
     if df is not None:
         try:
             processed_df, dropped_rows, categorical_cols = preprocess_data(df)
-            
+
             if dropped_rows > 0:
                 st.warning(f"Warning: {dropped_rows} rows were dropped due to missing data.")
             if categorical_cols:
@@ -84,43 +84,78 @@ def main():
             with st.form("new_supplier_form"):
                 new_supplier_inputs = {}
                 for col in feature_cols:
-                    new_supplier_inputs[col] = st.number_input(f"Enter value for '{col}'", value=0)
-                
+                    stats = processed_df.describe().loc[['min', 'mean', 'max'], col].to_dict()
+                    st.caption(f"Stats for '{col}': Min: {stats['min']:.1f} | Mean: {stats['mean']:.1f} | Max: {stats['max']:.1f}")
+                    new_supplier_inputs_key = f"new_{col}" # Unique key for each input
+                    new_supplier_inputs_value = st.number_input(
+                        f"Enter value for '{col}'",
+                        value=float(stats['mean']),
+                        key=new_supplier_inputs_key
+                    )
+                    new_supplier_inputs['_' + col] = new_supplier_inputs_value # Prefix to avoid conflict with df columns
+
                 submitted = st.form_submit_button("Predict Risk")
                 if submitted:
-                    # Store new supplier data in session state for replotting
-                    st.session_state.new_supplier_data = pd.DataFrame([new_supplier_inputs])
+                    new_supplier_df = pd.DataFrame([new_supplier_inputs])
+                    # Rename columns to match the training data (removing the underscore)
+                    new_supplier_df.columns = [col.replace('_', '') for col in new_supplier_df.columns]
+                    st.session_state.new_supplier_data = new_supplier_df
 
             # --- Perform prediction and display if new data exists ---
             if st.session_state.new_supplier_data is not None:
                 new_data_scaled = scaler.transform(st.session_state.new_supplier_data)
                 prediction = model.predict(new_data_scaled)
-                st.session_state.new_supplier_data[TARGET_COLUMN] = "New Supplier" # Special value for plotting
-                st.success(f"Predicted Risk Category: **{prediction[0]}**")
+                predicted_category_num = prediction.item()
+                predicted_category_label = RISK_CATEGORY_MAPPING.get(predicted_category_num, f"Category {predicted_category_num}")
+                st.success(f"Predicted Risk Category: **{predicted_category_label}**")
 
+                # Add the new supplier data with a special 'Risk Classification' for plotting
+                temp_new_supplier_plot = st.session_state.new_supplier_data.copy()
+                temp_new_supplier_plot["Risk Classification"] = "New Supplier"
+                plot_supplier_data = temp_new_supplier_plot
+            else:
+                plot_supplier_data = None
 
             # --- Plotting Section ---
             st.subheader("Pairplot of Features")
             all_features = processed_df.drop(columns=[TARGET_COLUMN])
             preds = model.predict(scaler.transform(all_features))
             pairplot_df = all_features.copy()
-            pairplot_df[TARGET_COLUMN] = preds
-            
+            # Map numerical predictions to labels for consistent hue
+            pairplot_df["Risk Classification"] = [RISK_CATEGORY_MAPPING.get(p, f"Category {p}") for p in preds]
+
             st.info("Generating plot from a sample of the data...")
             with st.spinner("Building plot..."):
                 SAMPLES_FOR_PLOT = 200
-                plot_df = pairplot_df.sample(min(len(pairplot_df), SAMPLES_FOR_PLOT))
-                
-                # Define a color palette
-                unique_risks = sorted(plot_df[TARGET_COLUMN].unique())
-                palette = dict(zip(unique_risks, sns.color_palette(n_colors=len(unique_risks))))
+                plot_df_sample = pairplot_df.sample(min(len(pairplot_df), SAMPLES_FOR_PLOT), random_state=42)
 
-                # If there's a new supplier, add it to the plot data and update the palette
-                if st.session_state.new_supplier_data is not None:
-                    plot_df = pd.concat([plot_df, st.session_state.new_supplier_data], ignore_index=True)
-                    palette["New Supplier"] = "red" # Assign red color
+                # Add new supplier data to the plot dataframe
+                if plot_supplier_data is not None:
+                    plot_df_combined = pd.concat([plot_df_sample, plot_supplier_data], ignore_index=True)
+                else:
+                    plot_df_combined = plot_df_sample
 
-                g = sns.pairplot(plot_df, hue=TARGET_COLUMN, palette=palette, diag_kind='hist')
+                # Use the mapping for colors
+                palette = RISK_COLOR_MAPPING
+
+                g = sns.pairplot(
+                    plot_df_combined,
+                    hue=TARGET_COLUMN,
+                    palette=palette,
+                    diag_kind='hist',
+                    hue_order=["Low", "Medium", "High", "New Supplier"], # Ensure correct order
+                    plot_kws={'s': [50 if cat != "New Supplier" else 100 for cat in plot_df_combined['Risk Classification']]} # Adjust dot size
+                )
+
+                # Manually update legend labels
+                for ax in g.axes.flat:
+                    if ax is not None and ax.get_legend() is not None:
+                        old_labels = ax.get_legend().get_texts()
+                        new_labels = [RISK_CATEGORY_MAPPING.get(int(t.get_text()) if t.get_text().isdigit() else t.get_text(), t.get_text()) for t in old_labels]
+                        for old_text, new_text in zip(old_labels, new_labels):
+                            old_text.set_text(new_text)
+                        break # Only need to do this once
+
                 st.pyplot(g.fig)
 
         except ValueError as e:
