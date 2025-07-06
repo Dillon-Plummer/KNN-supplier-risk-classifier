@@ -27,10 +27,10 @@ def main():
             col1, col2 = st.columns(2)
             if col1.button("⬆️ Upload File", use_container_width=True):
                 st.session_state.data_source_choice = 'upload'
-                st.experimental_rerun()
+                st.rerun()
             if col2.button("📊 Use Demo Data", use_container_width=True):
                 st.session_state.data_source_choice = 'demo'
-                st.experimental_rerun()
+                st.rerun()
         return
 
     # --- Sidebar Configuration ---
