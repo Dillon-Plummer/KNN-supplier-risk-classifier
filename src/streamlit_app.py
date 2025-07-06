@@ -55,6 +55,8 @@ def main():
             help="Controls the 'fuzziness' of the data clusters. Lower values create more distinct groups."
         )
         n_samples = st.sidebar.number_input("Number of Samples", 50, 1000, 350, 50)
+        
+        # This line must call the function with the new argument
         df = generate_dataset(n_samples=int(n_samples), overlap_multiplier=overlap)
 
     n_neighbors = st.sidebar.number_input("KNN Neighbors", 1, 20, 3, 1)
