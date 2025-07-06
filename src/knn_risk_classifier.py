@@ -38,7 +38,7 @@ def generate_dataset(sc_increase_percentage=4, qa_increase_percentage=1, n_sampl
         class_df = pd.DataFrame()
         for feature in sc_features:
             center = base_sc_value * multiplier
-            std_dev = center * 0.10
+            std_dev = center * 0.40
             class_df[feature] = np.random.normal(loc=center, scale=std_dev, size=count)
         for feature in qa_features:
             center = base_qa_value * multiplier
