@@ -7,7 +7,8 @@ from knn_risk_classifier import generate_dataset, train_knn, preprocess_data
 
 # --- Constants ---
 TARGET_COLUMN = "Risk Classification"
-RISK_LABEL_MAPPING = {1: "Low", 2: "Medium", 3: "High"}
+# Fixed mapping: numeric labels now correctly map to strings
+RISK_LABEL_MAPPING = {1: "High", 2: "Medium", 3: "Low"}
 RISK_COLOR_MAPPING = {"Low": "green", "Medium": "yellow", "High": "orange", "New Supplier": "red"}
 
 # --- Main App Logic ---
@@ -26,10 +27,10 @@ def main():
             col1, col2 = st.columns(2)
             if col1.button("⬆️ Upload File", use_container_width=True):
                 st.session_state.data_source_choice = 'upload'
-                st.rerun()
+                st.experimental_rerun()
             if col2.button("📊 Use Demo Data", use_container_width=True):
                 st.session_state.data_source_choice = 'demo'
-                st.rerun()
+                st.experimental_rerun()
         return
 
     # --- Sidebar Configuration ---
@@ -90,7 +91,7 @@ def main():
 
             # --- Reworked Prediction and Plotting Logic ---
 
-            # 1. Create base DataFrame with NUMERICAL predictions
+            # 1. Create base DataFrame with numerical predictions
             all_features = processed_df.drop(columns=[TARGET_COLUMN])
             preds = model.predict(scaler.transform(all_features))
             plot_df = all_features.copy()
@@ -105,13 +106,13 @@ def main():
                 st.success(f"Predicted Risk Category: **{prediction_label}**")
 
                 new_row = st.session_state.new_supplier_data.copy()
-                new_row[TARGET_COLUMN] = prediction_scalar # Add numerical prediction
+                new_row[TARGET_COLUMN] = prediction_scalar  # Add numerical prediction
                 plot_df = pd.concat([plot_df, new_row], ignore_index=True)
             
-            # 3. AT THE END, create the string labels for plotting
+            # 3. Convert to string labels for plotting
             plot_df['Risk Label'] = plot_df[TARGET_COLUMN].map(RISK_LABEL_MAPPING)
             if st.session_state.new_supplier_data is not None:
-                # Set the label for the last row (the new supplier)
+                # Mark the new supplier explicitly
                 plot_df.iloc[-1, plot_df.columns.get_loc('Risk Label')] = "New Supplier"
 
             # 4. Plotting Section
@@ -119,23 +120,38 @@ def main():
             st.info("Generating plot from a sample of the data...")
             with st.spinner("Building plot..."):
                 SAMPLES_FOR_PLOT = 200
-                plot_sample_df = plot_df.sample(min(len(plot_df), SAMPLES_FOR_PLOT))
+                plot_sample_df = plot_df.sample(min(len(plot_df), SAMPLES_FOR_PLOT), random_state=42)
                 
+                # Ensure the new supplier is always included
                 if st.session_state.new_supplier_data is not None:
-                    # Ensure the new supplier is always included in the sample
                     if "New Supplier" not in plot_sample_df['Risk Label'].values:
-                         plot_sample_df = pd.concat([plot_sample_df, plot_df.loc[plot_df['Risk Label'] == "New Supplier"]])
+                        plot_sample_df = pd.concat([
+                            plot_sample_df,
+                            plot_df[plot_df['Risk Label'] == "New Supplier"]
+                        ])
 
-                dot_sizes = [100 if cat == "New Supplier" else 40 for cat in plot_sample_df['Risk Label']]
-
+                # Option C: Draw base pairplot, then overlay the new supplier as an 'X'
                 g = sns.pairplot(
                     plot_sample_df,
                     vars=feature_cols,
-                    hue='Risk Label', # Use the new string label column
+                    hue='Risk Label',
                     palette=RISK_COLOR_MAPPING,
-                    diag_kind='hist',
-                    plot_kws={'s': dot_sizes}
+                    diag_kind='hist'
                 )
+                if st.session_state.new_supplier_data is not None:
+                    new_point = plot_sample_df[plot_sample_df['Risk Label'] == "New Supplier"]
+                    for i, xvar in enumerate(feature_cols):
+                        for j, yvar in enumerate(feature_cols):
+                            if i != j:
+                                ax = g.axes[j, i]
+                                ax.scatter(
+                                    new_point[xvar],
+                                    new_point[yvar],
+                                    s=150,
+                                    c=RISK_COLOR_MAPPING["New Supplier"],
+                                    marker='X',
+                                    edgecolor='black'
+                                )
                 st.pyplot(g.fig)
 
         except (ValueError, TypeError) as e:
