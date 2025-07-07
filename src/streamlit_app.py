@@ -66,6 +66,15 @@ def main():
         try:
             processed_df, dropped_rows, categorical_cols = preprocess_data(df)
             
+            ### DEBUG ###
+            st.subheader("DEBUG: Processed Data Info")
+            st.write("Data types of each column:")
+            st.write(processed_df.dtypes)
+            st.write("First 5 rows:")
+            st.dataframe(processed_df.head())
+            st.stop()
+            ### /DEBUG ###
+            
             if dropped_rows > 0:
                 st.warning(f"Warning: {dropped_rows} rows were dropped due to missing data.")
             if categorical_cols:
