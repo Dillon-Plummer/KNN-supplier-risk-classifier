@@ -86,14 +86,7 @@ def main():
                 for col in feature_cols:
                     stats = processed_df[col].describe()
                     mean_val = stats.get('mean', 0.0)
-
-                    # --- THE FIX: Ensure mean_val is a scalar ---
-                    if hasattr(mean_val, 'iloc') and not np.isscalar(mean_val):
-                         # Handle case where mean_val might be a pandas Series/array
-                        mean_val = mean_val.iloc[0] if not isinstance(mean_val, (int, float)) else mean_val
-                    # --- END FIX ---
-                    
-                    st.caption(f"Stats for '{col}': Min: {stats.get('min', 0.0):.1f} | Mean: {float(mean_val):.1f} | Max: {stats.get('max', 0.0):.1f}")
+                    st.caption(f"Stats for '{col}': Min: {stats.get('min', 0.0):.1f} | Mean: {mean_val:.1f} | Max: {stats.get('max', 0.0):.1f}")
                     default_value = st.session_state.form_inputs.get(col, float(mean_val))
                     new_supplier_inputs[col] = st.number_input(f"Enter value for '{col}'", value=default_value)
                 
@@ -102,39 +95,38 @@ def main():
                     st.session_state.form_inputs = new_supplier_inputs
                     st.session_state.new_supplier_data = pd.DataFrame([new_supplier_inputs])
 
-            # --- Prediction and Plotting Logic ---
-            all_features = processed_df.drop(columns=[TARGET_COLUMN])
-            base_predictions = model.predict(scaler.transform(all_features))
-            plot_df = all_features.copy()
-            plot_df[TARGET_COLUMN] = base_predictions
-
-            if st.session_state.new_supplier_data is not None:
-                new_data_scaled = scaler.transform(st.session_state.new_supplier_data)
-                prediction_array = model.predict(new_data_scaled)
-                prediction_scalar = prediction_array.item()
-                prediction_label = RISK_LABEL_MAPPING.get(prediction_scalar, "Unknown")
-                st.success(f"Predicted Risk Category: **{prediction_label}**")
-
-                new_row = st.session_state.new_supplier_data.copy()
-                new_row[TARGET_COLUMN] = prediction_scalar
-                plot_df = pd.concat([plot_df, new_row], ignore_index=True)
-            
-            plot_df['Risk Label'] = plot_df[TARGET_COLUMN].map(RISK_LABEL_MAPPING)
-            if st.session_state.new_supplier_data is not None:
-                plot_df.iloc[-1, plot_df.columns.get_loc('Risk Label')] = "New Supplier"
-
+            # --- Simplified Prediction and Plotting Logic ---
             st.subheader("Pairplot of Features")
-            st.info("Generating plot from a sample of the data...")
             with st.spinner("Building plot..."):
+                # 1. Start with the clean, processed data and its features
+                plot_df = processed_df.drop(columns=[TARGET_COLUMN])
+                
+                # 2. Add the new supplier's features if they exist
+                if st.session_state.new_supplier_data is not None:
+                    plot_df = pd.concat([plot_df, st.session_state.new_supplier_data], ignore_index=True)
+
+                # 3. Get predictions for the entire combined DataFrame (base data + new supplier)
+                all_predictions = model.predict(scaler.transform(plot_df))
+                plot_df[TARGET_COLUMN] = all_predictions
+                
+                # 4. Create string labels for plotting AT THE END
+                plot_df['Risk Label'] = plot_df[TARGET_COLUMN].map(RISK_LABEL_MAPPING)
+                if st.session_state.new_supplier_data is not None:
+                    # Set the label for the last row (the new supplier)
+                    plot_df.iloc[-1, plot_df.columns.get_loc('Risk Label')] = "New Supplier"
+                    
+                    # Display prediction message
+                    prediction_label = RISK_LABEL_MAPPING.get(plot_df.iloc[-1][TARGET_COLUMN], "Unknown")
+                    st.success(f"Predicted Risk Category: **{prediction_label}**")
+
+                # 5. Sample the final data for plotting
                 SAMPLES_FOR_PLOT = 200
                 plot_sample_df = plot_df.sample(min(len(plot_df), SAMPLES_FOR_PLOT))
-                
-                if st.session_state.new_supplier_data is not None:
-                    if "New Supplier" not in plot_sample_df['Risk Label'].values:
-                         plot_sample_df = pd.concat([plot_sample_df, plot_df[plot_df['Risk Label'] == "New Supplier"]])
+                if st.session_state.new_supplier_data is not None and "New Supplier" not in plot_sample_df['Risk Label'].values:
+                    plot_sample_df = pd.concat([plot_sample_df, plot_df[plot_df['Risk Label'] == "New Supplier"]])
 
+                # 6. Create dot sizes and plot
                 dot_sizes = [100 if cat == "New Supplier" else 40 for cat in plot_sample_df['Risk Label']]
-
                 g = sns.pairplot(
                     plot_sample_df,
                     vars=feature_cols,
