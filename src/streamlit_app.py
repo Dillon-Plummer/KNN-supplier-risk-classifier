@@ -76,88 +76,73 @@ def main():
             with st.form("new_supplier_form"):
                 new_supplier_inputs = {}
                 
-                # --- FIX ---
-                # This entire loop is rewritten for robustness.
                 for col in feature_cols:
                     stats = processed_df[col].describe()
-                    
-                    # 1. Immediately cast all stats from NumPy types to native Python floats.
                     min_val = float(stats['min'])
                     max_val = float(stats['max'])
                     mean_val = float(stats['mean'])
-
-                    # 2. Use the guaranteed Python floats in the caption.
                     st.caption(f"Stats for '{col}': Min: {min_val:.1f} | Mean: {mean_val:.1f} | Max: {max_val:.1f}")
-
-                    # 3. Determine the default value, using the Python float `mean_val`.
-                    # The value from session state should already be a float, but we cast to be safe.
                     default_value = float(st.session_state.form_inputs.get(col, mean_val))
-                    
-                    # 4. Pass the guaranteed Python floats to the number_input widget.
                     new_supplier_inputs[col] = st.number_input(
                         label=f"Enter value for '{col}'",
                         min_value=min_val,
                         max_value=max_val,
                         value=default_value
                     )
-                # --- END FIX ---
                 
                 submitted = st.form_submit_button("Predict Risk")
                 if submitted:
                     st.session_state.form_inputs = new_supplier_inputs
                     st.session_state.new_supplier_data = pd.DataFrame([new_supplier_inputs])
-                    st.rerun() # Rerun to update the plot immediately
+                    st.rerun()
 
             # --- Plotting Logic ---
             st.subheader("Pairplot of Features")
             with st.spinner("Building plot..."):
-                plot_df = processed_df.copy() # Use a copy to avoid modifying the original processed_df
+                plot_df = processed_df.copy()
 
-                # Add new supplier data for prediction and plotting
                 if st.session_state.new_supplier_data is not None:
                     new_supplier_row = st.session_state.new_supplier_data.copy()
-                    
-                    # Predict the risk for the new supplier
                     new_supplier_scaled = scaler.transform(new_supplier_row[feature_cols])
                     prediction = model.predict(new_supplier_scaled)
                     prediction_label = RISK_LABEL_MAPPING.get(prediction[0], "Unknown")
                     st.success(f"Predicted Risk Category: **{prediction_label}**")
-
-                    # Prepare for plotting
                     new_supplier_row[TARGET_COLUMN] = prediction[0]
                     new_supplier_row['Risk Label'] = "New Supplier"
-                    
-                    # Add the new supplier to the main plot data
                     plot_df['Risk Label'] = plot_df[TARGET_COLUMN].map(RISK_LABEL_MAPPING)
                     plot_df = pd.concat([plot_df, new_supplier_row], ignore_index=True)
                 else:
                     plot_df['Risk Label'] = plot_df[TARGET_COLUMN].map(RISK_LABEL_MAPPING)
 
-                # Sample the final data for plotting
                 SAMPLES_FOR_PLOT = 200
                 if len(plot_df) > SAMPLES_FOR_PLOT:
                     plot_sample_df = plot_df.sample(SAMPLES_FOR_PLOT)
-                    # Ensure the new supplier is always in the plot if it exists
                     if st.session_state.new_supplier_data is not None and "New Supplier" not in plot_sample_df['Risk Label'].values:
                          plot_sample_df = pd.concat([plot_sample_df.iloc[:-1], plot_df[plot_df['Risk Label'] == "New Supplier"]])
                 else:
                     plot_sample_df = plot_df
 
-                # Create dot sizes and plot
-                dot_sizes = [100 if cat == "New Supplier" else 40 for cat in plot_sample_df['Risk Label']]
+                # --- FIX ---
+                # 1. Create a new column for marker size. This is the idiomatic way for pairplot.
+                plot_sample_df['dot_size'] = plot_sample_df['Risk Label'].apply(lambda x: 150 if x == "New Supplier" else 40)
+                
+                # 2. Remove the old dot_sizes list and use the `size` and `sizes` parameters.
                 g = sns.pairplot(
                     plot_sample_df,
                     vars=feature_cols,
                     hue='Risk Label',
                     palette=RISK_COLOR_MAPPING,
                     diag_kind='hist',
-                    plot_kws={'s': dot_sizes}
+                    size='dot_size', # Tell seaborn to use this column for sizing
+                    sizes=(40, 150)  # Define the min and max size of the markers
                 )
+                # --- END FIX ---
+                
                 st.pyplot(g.fig)
 
         except Exception as e:
             st.error(f"An unexpected error occurred: {e}")
-            st.exception(e) # Also show the full traceback for easier debugging
+            st.exception(e)
 
 if __name__ == "__main__":
     main()
