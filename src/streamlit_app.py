@@ -19,7 +19,6 @@ def main():
         st.session_state.data_source_choice = None
     if 'new_supplier_data' not in st.session_state:
         st.session_state.new_supplier_data = None
-    # --- ADDED: Initialize state for form inputs ---
     if 'form_inputs' not in st.session_state:
         st.session_state.form_inputs = {}
 
@@ -85,37 +84,47 @@ def main():
                 new_supplier_inputs = {}
                 for col in feature_cols:
                     stats = processed_df[col].describe()
-                    st.caption(f"Stats for '{col}': Min: {stats['min']:.1f} | Mean: {stats['mean']:.1f} | Max: {stats['max']:.1f}")
-                    
-                    # --- CHANGED: Use session state for the default value ---
                     default_value = st.session_state.form_inputs.get(col, float(stats['mean']))
+                    st.caption(f"Stats for '{col}': Min: {stats['min']:.1f} | Mean: {stats['mean']:.1f} | Max: {stats['max']:.1f}")
                     new_supplier_inputs[col] = st.number_input(f"Enter value for '{col}'", value=default_value)
                 
                 submitted = st.form_submit_button("Predict Risk")
                 if submitted:
-                    # --- ADDED: Save the current inputs to session state ---
                     st.session_state.form_inputs = new_supplier_inputs
                     st.session_state.new_supplier_data = pd.DataFrame([new_supplier_inputs])
 
-            # --- Reworked Prediction and Plotting Logic ---
-            plot_df = processed_df.drop(columns=[TARGET_COLUMN])
-            plot_df[TARGET_COLUMN] = model.predict(scaler.transform(plot_df))
+            # --- Rewritten and Corrected Analysis/Plotting Logic ---
 
+            # 1. Create the base DataFrame for plotting with NUMERICAL predictions
+            all_features = processed_df.drop(columns=[TARGET_COLUMN])
+            base_predictions = model.predict(scaler.transform(all_features))
+            plot_df = all_features.copy()
+            plot_df[TARGET_COLUMN] = base_predictions
+
+            # 2. Handle the new supplier if it exists
             if st.session_state.new_supplier_data is not None:
                 new_data_scaled = scaler.transform(st.session_state.new_supplier_data)
+                
+                # This is the critical point for the error.
+                # We robustly get the single prediction value.
                 prediction_array = model.predict(new_data_scaled)
                 prediction_scalar = prediction_array.item()
+
+                # Display the successful prediction
                 prediction_label = RISK_LABEL_MAPPING.get(prediction_scalar, "Unknown")
                 st.success(f"Predicted Risk Category: **{prediction_label}**")
+                
+                # Add the new supplier row to our plot data with its numerical prediction
+                new_supplier_row = st.session_state.new_supplier_data.copy()
+                new_supplier_row[TARGET_COLUMN] = prediction_scalar
+                plot_df = pd.concat([plot_df, new_supplier_row], ignore_index=True)
 
-                new_row = st.session_state.new_supplier_data.copy()
-                new_row[TARGET_COLUMN] = prediction_scalar
-                plot_df = pd.concat([plot_df, new_row], ignore_index=True)
-            
+            # 3. At the very end, create a new column with string labels for the plot
             plot_df['Risk Label'] = plot_df[TARGET_COLUMN].map(RISK_LABEL_MAPPING)
             if st.session_state.new_supplier_data is not None:
                 plot_df.iloc[-1, plot_df.columns.get_loc('Risk Label')] = "New Supplier"
 
+            # 4. Final Plotting
             st.subheader("Pairplot of Features")
             st.info("Generating plot from a sample of the data...")
             with st.spinner("Building plot..."):
@@ -124,24 +133,22 @@ def main():
                 
                 if st.session_state.new_supplier_data is not None:
                     if "New Supplier" not in plot_sample_df['Risk Label'].values:
-                         plot_sample_df = pd.concat([plot_sample_df, plot_df.loc[plot_df['Risk Label'] == "New Supplier"]])
+                         plot_sample_df = pd.concat([plot_sample_df, plot_df[plot_df['Risk Label'] == "New Supplier"]])
 
                 dot_sizes = [100 if cat == "New Supplier" else 40 for cat in plot_sample_df['Risk Label']]
 
                 g = sns.pairplot(
                     plot_sample_df,
                     vars=feature_cols,
-                    hue='Risk Label',
+                    hue='Risk Label', # Use the safe string column
                     palette=RISK_COLOR_MAPPING,
                     diag_kind='hist',
                     plot_kws={'s': dot_sizes}
                 )
                 st.pyplot(g.fig)
 
-        except ValueError as e:
-            st.error(f"A data type or value error occurred. Please check your input data. Details: {e}")
         except Exception as e:
-            st.error(f"An unexpected error occurred during analysis: {e}")
+            st.error(f"An unexpected error occurred: {e}")
 
 if __name__ == "__main__":
     main()
