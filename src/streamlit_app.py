@@ -40,16 +40,17 @@ def main():
     df = None
 
     if st.session_state.data_source_choice == 'upload':
-        uploaded_file = st.sidebar.file_uploader("Upload a CSV or Excel file", type=["csv", "xlsx"])
-        if uploaded_file:
-            try:
-                df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
-            except Exception as e:
-                st.error(f"Error reading file: {e}")
-                return
-        else:
-            st.info("Please upload a file to continue.")
-            return
+        st.info("Coming soon!  Please reload the page and try out the demo.")
+        # uploaded_file = st.sidebar.file_uploader("Upload a CSV or Excel file", type=["csv", "xlsx"])
+        # if uploaded_file:
+        #     try:
+        #         df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+        #     except Exception as e:
+        #         st.error(f"Error reading file: {e}")
+        #         return
+        # else:
+        #     st.info("Please upload a file to continue.")
+        #     return
 
     elif st.session_state.data_source_choice == 'demo':
         st.info("Using demo data, configured in the sidebar.")
