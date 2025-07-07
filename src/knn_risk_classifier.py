@@ -92,11 +92,11 @@ def train_knn(df, n_neighbors=3):
     y_pred = knn.predict(X_test_scaled)
     metrics = {
         "accuracy": accuracy_score(y_test, y_pred),
-        "precision_macro": precision_score(y_test, y_pred, average="macro"),
-        "recall_macro": recall_score(y_test, y_pred, average="macro"),
-        "f1_macro": f1_score(y_test, y_pred, average="macro"),
+        "precision_macro": precision_score(y_test, y_pred, average="macro", zero_division=0),
+        "recall_macro": recall_score(y_test, y_pred, average="macro", zero_division=0),
+        "f1_macro": f1_score(y_test, y_pred, average="macro", zero_division=0),
     }
-    report = classification_report(y_test, y_pred, output_dict=True)
+    report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
     labels = sorted(y.unique())
     cm = confusion_matrix(y_test, y_pred, labels=labels)
     cm_df = pd.DataFrame(cm, index=labels, columns=labels)
