@@ -85,9 +85,15 @@ def main():
                 new_supplier_inputs = {}
                 for col in feature_cols:
                     stats = processed_df[col].describe()
-                    # Use .get() for safety and robustly create the input
                     mean_val = stats.get('mean', 0.0)
-                    st.caption(f"Stats for '{col}': Min: {stats.get('min', 0.0):.1f} | Mean: {mean_val:.1f} | Max: {stats.get('max', 0.0):.1f}")
+
+                    # --- THE FIX: Ensure mean_val is a scalar ---
+                    if hasattr(mean_val, 'iloc') and not np.isscalar(mean_val):
+                         # Handle case where mean_val might be a pandas Series/array
+                        mean_val = mean_val.iloc[0] if not isinstance(mean_val, (int, float)) else mean_val
+                    # --- END FIX ---
+                    
+                    st.caption(f"Stats for '{col}': Min: {stats.get('min', 0.0):.1f} | Mean: {float(mean_val):.1f} | Max: {stats.get('max', 0.0):.1f}")
                     default_value = st.session_state.form_inputs.get(col, float(mean_val))
                     new_supplier_inputs[col] = st.number_input(f"Enter value for '{col}'", value=default_value)
                 
@@ -96,7 +102,7 @@ def main():
                     st.session_state.form_inputs = new_supplier_inputs
                     st.session_state.new_supplier_data = pd.DataFrame([new_supplier_inputs])
 
-            # --- Final Prediction and Plotting Logic ---
+            # --- Prediction and Plotting Logic ---
             all_features = processed_df.drop(columns=[TARGET_COLUMN])
             base_predictions = model.predict(scaler.transform(all_features))
             plot_df = all_features.copy()
