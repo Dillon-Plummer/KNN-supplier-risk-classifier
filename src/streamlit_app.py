@@ -133,8 +133,8 @@ def main():
                     hue='Risk Label',
                     palette=RISK_COLOR_MAPPING,
                     diag_kind='hist',
-                    size='dot_size', # Tell seaborn to use this column for sizing
-                    sizes=(40, 150)  # Define the min and max size of the markers
+                    # size='dot_size', # Tell seaborn to use this column for sizing
+                    # sizes=(40, 150)  # Define the min and max size of the markers
                 )
                 # --- END FIX ---
                 
