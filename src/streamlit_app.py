@@ -40,7 +40,7 @@ def main():
     df = None
 
     if st.session_state.data_source_choice == 'upload':
-        st.info("Coming soon!  Please reload the page and try out the demo.")
+        st.info("Coming soon! Please reload the page and try out the demo.")
         # uploaded_file = st.sidebar.file_uploader("Upload a CSV or Excel file", type=["csv", "xlsx"])
         # if uploaded_file:
         #     try:
@@ -87,8 +87,16 @@ def main():
                     stats = processed_df[col].describe()
                     mean_val = stats.get('mean', 0.0)
                     st.caption(f"Stats for '{col}': Min: {stats.get('min', 0.0):.1f} | Mean: {mean_val:.1f} | Max: {stats.get('max', 0.0):.1f}")
-                    default_value = st.session_state.form_inputs.get(col, float(mean_val))
-                    new_supplier_inputs[col] = st.number_input(f"Enter value for '{col}'", value=default_value)
+                    
+                    # --- FIX ---
+                    # Get the default value (either from previous input or the dataset's mean)
+                    default_value = st.session_state.form_inputs.get(col, mean_val)
+                    # Explicitly cast to a native Python float right before passing it to the widget
+                    new_supplier_inputs[col] = st.number_input(
+                        f"Enter value for '{col}'",
+                        value=float(default_value) 
+                    )
+                    # --- END FIX ---
                 
                 submitted = st.form_submit_button("Predict Risk")
                 if submitted:
