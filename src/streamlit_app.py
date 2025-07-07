@@ -41,16 +41,8 @@ def main():
 
     if st.session_state.data_source_choice == 'upload':
         st.info("Coming soon! Please reload the page and try out the demo.")
-        # uploaded_file = st.sidebar.file_uploader("Upload a CSV or Excel file", type=["csv", "xlsx"])
-        # if uploaded_file:
-        #     try:
-        #         df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
-        #     except Exception as e:
-        #         st.error(f"Error reading file: {e}")
-        #         return
-        # else:
-        #     st.info("Please upload a file to continue.")
-        #     return
+        # Upload logic commented out as per original file
+        return
 
     elif st.session_state.data_source_choice == 'demo':
         st.info("Using demo data, configured in the sidebar.")
@@ -83,57 +75,75 @@ def main():
             st.subheader("Predict a New Supplier")
             with st.form("new_supplier_form"):
                 new_supplier_inputs = {}
+                
+                # --- FIX ---
+                # This entire loop is rewritten for robustness.
                 for col in feature_cols:
                     stats = processed_df[col].describe()
-                    mean_val = stats.get('mean', 0.0)
-                    st.caption(f"Stats for '{col}': Min: {stats.get('min', 0.0):.1f} | Mean: {mean_val:.1f} | Max: {stats.get('max', 0.0):.1f}")
                     
-                    # --- FIX ---
-                    # Get the default value (either from previous input or the dataset's mean)
-                    default_value = st.session_state.form_inputs.get(col, mean_val)
-                    # Explicitly cast to a native Python float right before passing it to the widget
+                    # 1. Immediately cast all stats from NumPy types to native Python floats.
+                    min_val = float(stats['min'])
+                    max_val = float(stats['max'])
+                    mean_val = float(stats['mean'])
+
+                    # 2. Use the guaranteed Python floats in the caption.
+                    st.caption(f"Stats for '{col}': Min: {min_val:.1f} | Mean: {mean_val:.1f} | Max: {max_val:.1f}")
+
+                    # 3. Determine the default value, using the Python float `mean_val`.
+                    # The value from session state should already be a float, but we cast to be safe.
+                    default_value = float(st.session_state.form_inputs.get(col, mean_val))
+                    
+                    # 4. Pass the guaranteed Python floats to the number_input widget.
                     new_supplier_inputs[col] = st.number_input(
-                        f"Enter value for '{col}'",
-                        value=float(default_value) 
+                        label=f"Enter value for '{col}'",
+                        min_value=min_val,
+                        max_value=max_val,
+                        value=default_value
                     )
-                    # --- END FIX ---
+                # --- END FIX ---
                 
                 submitted = st.form_submit_button("Predict Risk")
                 if submitted:
                     st.session_state.form_inputs = new_supplier_inputs
                     st.session_state.new_supplier_data = pd.DataFrame([new_supplier_inputs])
+                    st.rerun() # Rerun to update the plot immediately
 
-            # --- Simplified Prediction and Plotting Logic ---
+            # --- Plotting Logic ---
             st.subheader("Pairplot of Features")
             with st.spinner("Building plot..."):
-                # 1. Start with the clean, processed data and its features
-                plot_df = processed_df.drop(columns=[TARGET_COLUMN])
-                
-                # 2. Add the new supplier's features if they exist
-                if st.session_state.new_supplier_data is not None:
-                    plot_df = pd.concat([plot_df, st.session_state.new_supplier_data], ignore_index=True)
+                plot_df = processed_df.copy() # Use a copy to avoid modifying the original processed_df
 
-                # 3. Get predictions for the entire combined DataFrame (base data + new supplier)
-                all_predictions = model.predict(scaler.transform(plot_df))
-                plot_df[TARGET_COLUMN] = all_predictions
-                
-                # 4. Create string labels for plotting AT THE END
-                plot_df['Risk Label'] = plot_df[TARGET_COLUMN].map(RISK_LABEL_MAPPING)
+                # Add new supplier data for prediction and plotting
                 if st.session_state.new_supplier_data is not None:
-                    # Set the label for the last row (the new supplier)
-                    plot_df.iloc[-1, plot_df.columns.get_loc('Risk Label')] = "New Supplier"
+                    new_supplier_row = st.session_state.new_supplier_data.copy()
                     
-                    # Display prediction message
-                    prediction_label = RISK_LABEL_MAPPING.get(plot_df.iloc[-1][TARGET_COLUMN], "Unknown")
+                    # Predict the risk for the new supplier
+                    new_supplier_scaled = scaler.transform(new_supplier_row[feature_cols])
+                    prediction = model.predict(new_supplier_scaled)
+                    prediction_label = RISK_LABEL_MAPPING.get(prediction[0], "Unknown")
                     st.success(f"Predicted Risk Category: **{prediction_label}**")
 
-                # 5. Sample the final data for plotting
-                SAMPLES_FOR_PLOT = 200
-                plot_sample_df = plot_df.sample(min(len(plot_df), SAMPLES_FOR_PLOT))
-                if st.session_state.new_supplier_data is not None and "New Supplier" not in plot_sample_df['Risk Label'].values:
-                    plot_sample_df = pd.concat([plot_sample_df, plot_df[plot_df['Risk Label'] == "New Supplier"]])
+                    # Prepare for plotting
+                    new_supplier_row[TARGET_COLUMN] = prediction[0]
+                    new_supplier_row['Risk Label'] = "New Supplier"
+                    
+                    # Add the new supplier to the main plot data
+                    plot_df['Risk Label'] = plot_df[TARGET_COLUMN].map(RISK_LABEL_MAPPING)
+                    plot_df = pd.concat([plot_df, new_supplier_row], ignore_index=True)
+                else:
+                    plot_df['Risk Label'] = plot_df[TARGET_COLUMN].map(RISK_LABEL_MAPPING)
 
-                # 6. Create dot sizes and plot
+                # Sample the final data for plotting
+                SAMPLES_FOR_PLOT = 200
+                if len(plot_df) > SAMPLES_FOR_PLOT:
+                    plot_sample_df = plot_df.sample(SAMPLES_FOR_PLOT)
+                    # Ensure the new supplier is always in the plot if it exists
+                    if st.session_state.new_supplier_data is not None and "New Supplier" not in plot_sample_df['Risk Label'].values:
+                         plot_sample_df = pd.concat([plot_sample_df.iloc[:-1], plot_df[plot_df['Risk Label'] == "New Supplier"]])
+                else:
+                    plot_sample_df = plot_df
+
+                # Create dot sizes and plot
                 dot_sizes = [100 if cat == "New Supplier" else 40 for cat in plot_sample_df['Risk Label']]
                 g = sns.pairplot(
                     plot_sample_df,
@@ -147,6 +157,7 @@ def main():
 
         except Exception as e:
             st.error(f"An unexpected error occurred: {e}")
+            st.exception(e) # Also show the full traceback for easier debugging
 
 if __name__ == "__main__":
     main()
