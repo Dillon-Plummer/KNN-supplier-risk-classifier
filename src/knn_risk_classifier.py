@@ -15,11 +15,23 @@ from sklearn.model_selection import train_test_split
 TARGET_COLUMN = "Risk Classification"
 
 
-def generate_dataset(n_samples=350, overlap_multiplier=0.40):
+def generate_dataset(n_samples=350, overlap_multiplier=0.40, random_state=None):
     """
     Create a dataset with distinct families/clusters for each risk class.
     Uses only 5 features for a simpler, more performant demo.
+
+    Parameters
+    ----------
+    n_samples : int, optional
+        Total number of samples to generate. Default is 350.
+    overlap_multiplier : float, optional
+        Controls the standard deviation of each feature distribution.
+    random_state : int or None, optional
+        Seed for ``numpy``'s random number generator to ensure reproducible
+        results. If ``None`` (default), randomness is not seeded.
     """
+    if random_state is not None:
+        np.random.seed(random_state)
     data_frames = []
     risk_profiles = {
         "High": (1, 1.6, n_samples // 3),
