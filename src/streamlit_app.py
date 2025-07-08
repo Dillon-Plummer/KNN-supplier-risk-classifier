@@ -21,6 +21,9 @@ def main():
         st.session_state.new_supplier_data = None
     if 'form_inputs' not in st.session_state:
         st.session_state.form_inputs = {}
+    if 'demo_df' not in st.session_state:
+        st.session_state.demo_df = None
+        st.session_state.demo_params = {'n_samples': None, 'overlap': None}
 
     # --- Initial Modal ---
     if st.session_state.data_source_choice is None:
@@ -46,12 +49,28 @@ def main():
 
     elif st.session_state.data_source_choice == 'demo':
         st.info("Using demo data, configured in the sidebar.")
+
+        default_overlap = st.session_state.demo_params.get('overlap', 0.4)
+        default_samples = st.session_state.demo_params.get('n_samples', 350)
+
         overlap = st.sidebar.slider(
-            "Data Overlap", min_value=0.1, max_value=1.0, value=0.4, step=0.05,
+            "Data Overlap", min_value=0.1, max_value=1.0, value=float(default_overlap), step=0.05,
             help="Controls the 'fuzziness' of the data clusters. Lower values create more distinct groups."
         )
-        n_samples = st.sidebar.number_input("Number of Samples", 50, 1000, 350, 50)
-        df = generate_dataset(n_samples=int(n_samples), overlap_multiplier=overlap)
+        n_samples = st.sidebar.number_input("Number of Samples", 50, 1000, int(default_samples), 50)
+
+        params_changed = (
+            st.session_state.demo_df is None or
+            st.session_state.demo_params['n_samples'] != n_samples or
+            st.session_state.demo_params['overlap'] != overlap
+        )
+
+        if params_changed:
+            df = generate_dataset(n_samples=int(n_samples), overlap_multiplier=overlap)
+            st.session_state.demo_df = df
+            st.session_state.demo_params = {'n_samples': n_samples, 'overlap': overlap}
+        else:
+            df = st.session_state.demo_df
 
     n_neighbors = st.sidebar.number_input("KNN Neighbors", 1, 20, 3, 1)
 
